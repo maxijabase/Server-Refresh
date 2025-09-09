@@ -118,6 +118,9 @@ public void OnPluginStart()
 	cvWeeklyRestartIgnorePlayers = CreateConVar("sm_restart_weekly_ignoreplayers", "0", "Ignore players on weekly restart (0 = No, 1 = Yes, Default = 0)", _, true, 0.0, true, 1.0);
 	g_iWeeklyRestartIgnorePlayers = cvWeeklyRestartIgnorePlayers.IntValue;
 	
+	// register admin commands
+	RegAdminCmd("sm_restart_schedule", Command_ShowSchedule, ADMFLAG_RCON, "Display all configured restart schedules");
+	
 	// hooking cvar changes
 	cvRestartMessage.AddChangeHook(OnCvarChanged);
 	cvRestartMapMessage.AddChangeHook(OnCvarChanged);
@@ -442,6 +445,129 @@ public Action Timer_Restart(Handle hTimer, int iType)
 				FakeClientCommand(i, "retry");
 				
 		ServerCommand("_restart");
+	}
+	
+	return Plugin_Handled;
+}
+
+// command handler for displaying restart schedules
+public Action Command_ShowSchedule(int client, int args)
+{
+	char sBuffer[1024];
+	char sTemp[256];
+	
+	// header
+	strcopy(sBuffer, sizeof(sBuffer), "\n===== SERVER RESTART SCHEDULE CONFIGURATION =====\n");
+	
+	// empty server restart
+	if (g_iEmptyRestart == 1)
+	{
+		Format(sTemp, sizeof(sTemp), "\n[EMPTY] Server restart when empty: ENABLED");
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+		Format(sTemp, sizeof(sTemp), "\n  └─ Wait time: %d seconds", g_iEmptyRestartWait);
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+		Format(sTemp, sizeof(sTemp), "\n  └─ Restart type: %s", (g_iEmptyRestartType == 0) ? "Map change" : "Server restart");
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+	}
+	else
+	{
+		StrCat(sBuffer, sizeof(sBuffer), "\n[EMPTY] Server restart when empty: DISABLED");
+	}
+	
+	// hourly restart
+	if (g_iHourlyRestart == 1)
+	{
+		Format(sTemp, sizeof(sTemp), "\n\n[HOURLY] Hourly restart: ENABLED");
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+		Format(sTemp, sizeof(sTemp), "\n  └─ Time: Every hour at minute %s", g_sHourlyRestartTime);
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+		Format(sTemp, sizeof(sTemp), "\n  └─ Wait time: %d seconds", g_iHourlyRestartWait);
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+		Format(sTemp, sizeof(sTemp), "\n  └─ Restart type: %s", (g_iHourlyRestartType == 0) ? "Map change" : "Server restart");
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+		Format(sTemp, sizeof(sTemp), "\n  └─ Ignore players: %s", (g_iHourlyRestartIgnorePlayers == 1) ? "YES (restart even with players)" : "NO (only when empty)");
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+	}
+	else
+	{
+		StrCat(sBuffer, sizeof(sBuffer), "\n\n[HOURLY] Hourly restart: DISABLED");
+	}
+	
+	// daily restart
+	if (g_iDailyRestart == 1)
+	{
+		Format(sTemp, sizeof(sTemp), "\n\n[DAILY] Daily restart: ENABLED");
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+		char sHour[3], sMinute[3];
+		sHour[0] = g_sDailyRestartTime[0];
+		sHour[1] = g_sDailyRestartTime[1]; 
+		sHour[2] = '\0';
+		sMinute[0] = g_sDailyRestartTime[2];
+		sMinute[1] = g_sDailyRestartTime[3];
+		sMinute[2] = '\0';
+		Format(sTemp, sizeof(sTemp), "\n  └─ Time: Every day at %s:%s", sHour, sMinute);
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+		Format(sTemp, sizeof(sTemp), "\n  └─ Wait time: %d seconds", g_iDailyRestartWait);
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+		Format(sTemp, sizeof(sTemp), "\n  └─ Restart type: %s", (g_iDailyRestartType == 0) ? "Map change" : "Server restart");
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+		Format(sTemp, sizeof(sTemp), "\n  └─ Ignore players: %s", (g_iDailyRestartIgnorePlayers == 1) ? "YES (restart even with players)" : "NO (only when empty)");
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+	}
+	else
+	{
+		StrCat(sBuffer, sizeof(sBuffer), "\n\n[DAILY] Daily restart: DISABLED");
+	}
+	
+	// weekly restart
+	if (g_iWeeklyRestart == 1)
+	{
+		char sDayName[32];
+		if (StrEqual(g_sWeeklyRestartDay, "sun")) strcopy(sDayName, sizeof(sDayName), "Sunday");
+		else if (StrEqual(g_sWeeklyRestartDay, "mon")) strcopy(sDayName, sizeof(sDayName), "Monday");
+		else if (StrEqual(g_sWeeklyRestartDay, "tue")) strcopy(sDayName, sizeof(sDayName), "Tuesday");
+		else if (StrEqual(g_sWeeklyRestartDay, "wed")) strcopy(sDayName, sizeof(sDayName), "Wednesday");
+		else if (StrEqual(g_sWeeklyRestartDay, "thu")) strcopy(sDayName, sizeof(sDayName), "Thursday");
+		else if (StrEqual(g_sWeeklyRestartDay, "fri")) strcopy(sDayName, sizeof(sDayName), "Friday");
+		else if (StrEqual(g_sWeeklyRestartDay, "sat")) strcopy(sDayName, sizeof(sDayName), "Saturday");
+		else strcopy(sDayName, sizeof(sDayName), "Unknown");
+		
+		Format(sTemp, sizeof(sTemp), "\n\n[WEEKLY] Weekly restart: ENABLED");
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+		Format(sTemp, sizeof(sTemp), "\n  └─ Day: %s", sDayName);
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+		char sWeeklyHour[3], sWeeklyMinute[3];
+		sWeeklyHour[0] = g_sWeeklyRestartTime[0];
+		sWeeklyHour[1] = g_sWeeklyRestartTime[1];
+		sWeeklyHour[2] = '\0';
+		sWeeklyMinute[0] = g_sWeeklyRestartTime[2];
+		sWeeklyMinute[1] = g_sWeeklyRestartTime[3];
+		sWeeklyMinute[2] = '\0';
+		Format(sTemp, sizeof(sTemp), "\n  └─ Time: %s:%s", sWeeklyHour, sWeeklyMinute);
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+		Format(sTemp, sizeof(sTemp), "\n  └─ Wait time: %d seconds", g_iWeeklyRestartWait);
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+		Format(sTemp, sizeof(sTemp), "\n  └─ Restart type: %s", (g_iWeeklyRestartType == 0) ? "Map change" : "Server restart");
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+		Format(sTemp, sizeof(sTemp), "\n  └─ Ignore players: %s", (g_iWeeklyRestartIgnorePlayers == 1) ? "YES (restart even with players)" : "NO (only when empty)");
+		StrCat(sBuffer, sizeof(sBuffer), sTemp);
+	}
+	else
+	{
+		StrCat(sBuffer, sizeof(sBuffer), "\n\n[WEEKLY] Weekly restart: DISABLED");
+	}
+	
+	StrCat(sBuffer, sizeof(sBuffer), "\n\n===================================================");
+	
+	// display to client
+	if (client == 0)
+	{
+		PrintToServer(sBuffer);
+	}
+	else
+	{
+		PrintToConsole(client, sBuffer);
+		PrintToChat(client, "[Server Refresh] Schedule information printed to console. Check your console!");
 	}
 	
 	return Plugin_Handled;
