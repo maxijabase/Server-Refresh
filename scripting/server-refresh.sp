@@ -36,7 +36,10 @@ int
 	g_iWeeklyRestart,
 	g_iWeeklyRestartWait,
 	g_iWeeklyRestartType,
-	g_iWeeklyRestartIgnorePlayers;
+	g_iWeeklyRestartIgnorePlayers,
+	g_iLastHourlyRestart,
+	g_iLastDailyRestart,
+	g_iLastWeeklyRestart;
 	
 char
 	g_sHourlyRestartTime[32],
@@ -104,7 +107,7 @@ public void OnPluginStart()
 	
 	cvWeeklyRestartDay = CreateConVar("sm_restart_weekly_day", "sun", "On which day should the restart happen in 3 letters (Default = sun)");
 	cvWeeklyRestartDay.GetString(g_sWeeklyRestartDay, sizeof(g_sWeeklyRestartDay));
-	strcopy(g_sWeeklyRestartDay, sizeof(g_sWeeklyRestartDay), StringToLower(g_sWeeklyRestartDay));
+	StringToLower(g_sWeeklyRestartDay);
 	
 	cvWeeklyRestartTime = CreateConVar("sm_restart_weekly_time", "0500", "At what hour and minute should the restart happen in 4 digits (Minimum = 0000, Maximum = 2359, Default = 0500)");
 	cvWeeklyRestartTime.GetString(g_sWeeklyRestartTime, sizeof(g_sWeeklyRestartTime));
@@ -140,7 +143,7 @@ public void OnPluginStart()
 }
 
 // called when a cvar is changed
-public int OnCvarChanged(ConVar cvar, const char[] oldValue, const char[] newValue)
+public void OnCvarChanged(ConVar cvar, const char[] oldValue, const char[] newValue)
 {
 	// updating cvar values when they change
 	if (cvar == cvRestartMessage)
@@ -195,12 +198,15 @@ public int OnCvarChanged(ConVar cvar, const char[] oldValue, const char[] newVal
 		g_iWeeklyRestartWait = cvWeeklyRestartWait.IntValue;
 		
 	if (cvar == cvWeeklyRestartDay)
-		cvWeeklyRestartDay.GetString(g_sDailyRestartTime, sizeof(g_sDailyRestartTime));
+		cvWeeklyRestartDay.GetString(g_sWeeklyRestartDay, sizeof(g_sWeeklyRestartDay));
 		
 	if (cvar == cvWeeklyRestartTime)
-	{
 		cvWeeklyRestartTime.GetString(g_sWeeklyRestartTime, sizeof(g_sWeeklyRestartTime));
-		strcopy(g_sWeeklyRestartTime, sizeof(g_sWeeklyRestartTime), StringToLower(g_sWeeklyRestartTime));
+		
+	if (cvar == cvWeeklyRestartDay)
+	{
+		cvWeeklyRestartDay.GetString(g_sWeeklyRestartDay, sizeof(g_sWeeklyRestartDay));
+		StringToLower(g_sWeeklyRestartDay);
 	}
 	
 	if (cvar == cvWeeklyRestartType)
@@ -247,14 +253,24 @@ public Action Timer_HourlyRestart(Handle hTimer)
 		// check the hourly restart time
 		if (StrEqual(sTime, g_sHourlyRestartTime))
 		{
-			// if there is nobody in the server or it should be ignored
-			if (GetConnectedPlayerCount() == 0 || g_iHourlyRestartIgnorePlayers == 1)
+			// get current timestamp for cooldown check
+			int iCurrentTime = GetTime();
+			
+			// check cooldown (prevent multiple restarts in same minute)
+			if (iCurrentTime - g_iLastHourlyRestart >= 61)
 			{
-				// restart
-				ExecuteRestart(g_iHourlyRestartType, g_iHourlyRestartWait);
+				// if there is nobody in the server or it should be ignored
+				if (GetConnectedPlayerCount() == 0 || g_iHourlyRestartIgnorePlayers == 1)
+				{
+					// update last restart time
+					g_iLastHourlyRestart = iCurrentTime;
+					// restart
+					ExecuteRestart(g_iHourlyRestartType, g_iHourlyRestartWait);
+				}
 			}
 		}
 	}
+	return Plugin_Continue;
 }
 
 // timer function for restarting daily
@@ -270,13 +286,23 @@ public Action Timer_DailyRestart(Handle hTimer)
 		// check the daily restart time
 		if (StrEqual(sTime, g_sDailyRestartTime))
 		{
-			// if there is nobody in the server or it should be ignored
-			if (GetConnectedPlayerCount() == 0 || g_iDailyRestartIgnorePlayers == 1)
+			// get current timestamp for cooldown check
+			int iCurrentTime = GetTime();
+			
+			// check cooldown (prevent multiple restarts in same minute)
+			if (iCurrentTime - g_iLastDailyRestart >= 61)
 			{
-				ExecuteRestart(g_iDailyRestartType, g_iDailyRestartWait);
+				// if there is nobody in the server or it should be ignored
+				if (GetConnectedPlayerCount() == 0 || g_iDailyRestartIgnorePlayers == 1)
+				{
+					// update last restart time
+					g_iLastDailyRestart = iCurrentTime;
+					ExecuteRestart(g_iDailyRestartType, g_iDailyRestartWait);
+				}
 			}
 		}
 	}
+	return Plugin_Continue;
 }
 
 // timer function for restarting weekly
@@ -315,21 +341,31 @@ public Action Timer_WeeklyRestart(Handle hTimer)
 		// check the weekly restart day
 		if (StringToInt(sTime) == iTime)
 		{
-			// get the current minute
-			FormatTime(sTime, sizeof(sTime), "%M");
+			// get the current time for hour and minute check
+			FormatTime(sTime, sizeof(sTime), "%H%M");
 			
-			// check the weekly restart hour time
+			// check the weekly restart time
 			if (StrEqual(sTime, g_sWeeklyRestartTime))
 			{
-				// if there is nobody in the server or it should be ignored
-				if (GetConnectedPlayerCount() == 0 || g_iWeeklyRestartIgnorePlayers == 1)
+				// get current timestamp for cooldown check
+				int iCurrentTime = GetTime();
+				
+				// check cooldown (prevent multiple restarts in same minute)
+				if (iCurrentTime - g_iLastWeeklyRestart >= 61)
 				{
-					// restart
-					ExecuteRestart(g_iWeeklyRestartType, g_iWeeklyRestartWait);
+					// if there is nobody in the server or it should be ignored
+					if (GetConnectedPlayerCount() == 0 || g_iWeeklyRestartIgnorePlayers == 1)
+					{
+						// update last restart time
+						g_iLastWeeklyRestart = iCurrentTime;
+						// restart
+						ExecuteRestart(g_iWeeklyRestartType, g_iWeeklyRestartWait);
+					}
 				}
 			}
 		}
 	}
+	return Plugin_Continue;
 }
 
 // function for restarting
@@ -412,7 +448,7 @@ public Action Timer_Restart(Handle hTimer, int iType)
 }
 
 // stock for converting a string to lower case
-stock char StringToLower(char[] sFormat)
+stock void StringToLower(char[] sFormat)
 {
 	for (int i = 0; i < strlen(sFormat); i++)
 	{
@@ -420,8 +456,6 @@ stock char StringToLower(char[] sFormat)
 			sFormat[i] = CharToLower(sFormat[i]);
 		}
 	}
-	
-	return sFormat;
 }
 
 // stock for getting the number of players connected in the server
@@ -453,5 +487,5 @@ public Plugin myinfo =
 	name 			= 	"Titan 2 - Server Refresh",
 	description 	= 	"All inclusive server restart features in one plugin, ensures your server is always refreshed and prepared for the next load.",
 	author 			= 	"myst",
-	version 		= 	"2.0",
+	version 		= 	"2.1",
 }
