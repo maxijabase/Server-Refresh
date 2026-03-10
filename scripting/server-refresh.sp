@@ -612,6 +612,6 @@ public Plugin myinfo =
 {
 	name 			= 	"Titan 2 - Server Refresh",
 	description 	= 	"All inclusive server restart features in one plugin, ensures your server is always refreshed and prepared for the next load.",
-	author 			= 	"myst",
-	version 		= 	"2.1",
+	author 			= 	"myst (ampere fork)",
+	version 		= 	"2.2",
 }
